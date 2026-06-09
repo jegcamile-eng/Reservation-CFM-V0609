@@ -1,1 +1,455 @@
 # Reservation-CFM-V0609
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>訂房確認產生器 - 優化版</title>
+<style>
+  body { font-family: Arial, sans-serif; padding:20px; max-width:700px; margin:auto; background:#f5f5f5; color:#333; }
+  h2 { text-align:center; }
+  label { display:block; margin-top:10px; }
+  input, select, textarea { width:100%; padding:8px; margin-top:5px; border-radius:4px; border:1px solid #ccc; }
+  textarea { height:300px; resize:vertical; }
+  button { margin-top:10px; padding:10px 20px; margin-right:10px; border:none; border-radius:4px; background:#007bff; color:white; cursor:pointer; }
+  button:hover { background:#0056b3; }
+  .room-label, .breakfast-label { margin-top:10px; }
+  #toast { position: fixed; bottom:20px; right:20px; background:#333; color:white; padding:10px 15px; border-radius:5px; opacity:0; transition:0.3s; }
+</style>
+</head>
+<body>
+
+<h2>訂房確認產生器 - 優化版</h2>
+
+<label>入住日期 <input type="date" id="checkin"></label>
+<label>退房日期 <input type="date" id="checkout"></label>
+
+<label>專案
+<select id="plan">
+<option value="2">一泊二食</option>
+<option value="1">一泊一食</option>
+<option value="0">純住宿</option>
+</select>
+</label>
+
+<div id="dinnerContainer"></div>
+<div id="breakfastContainer"></div>
+
+<label>房間數 <input type="number" id="roomCount" min="1" value="1"></label>
+<div id="rooms"></div>
+
+<label>已有中文名
+<select id="hasName">
+<option value="1">有</option>
+<option value="0">沒有</option>
+</select>
+</label>
+
+<label>已有手機
+<select id="hasPhone">
+<option value="1">有</option>
+<option value="0">沒有</option>
+</select>
+</label>
+
+<button onclick="generate()">產生文字</button>
+<button onclick="copyText()">一鍵複製</button>
+<button onclick="translateToEnglish()">翻譯英文</button>
+
+<textarea id="output" readonly></textarea>
+
+<div id="toast">已複製文字！</div>
+
+<script>
+const roomTypes = {
+ 1:"高級洋式客房一大床",
+ 2:"高級洋式客房兩小床",
+ 3:"豪華洋式客房",
+ 4:"日式家庭三人房",
+ 5:"高級家庭房",
+ 6:"豪華家庭房",
+ 7:"和洋式套房",
+ 8:"歐式套房"
+};
+
+const roomTypesEN = {
+ 1:"Superior Room(Double bed)",
+ 2:"Superior Room(Twin bed)",
+ 3:"Deluxe Room",
+ 4:"Japanese Family Room",
+ 5:"Superior Family Room",
+ 6:"Deluxe Family Room",
+ 7:"Fusion Suite",
+ 8:"European Suite"
+};
+
+const breakfastTimes = ["","07:00-08:30","08:30-10:00","10:00-11:30","11:30-13:00"];
+const dinnerTimes = ["","17:20-19:10","19:30-21:20"];
+
+function updateRooms(){
+  let count = parseInt(document.getElementById("roomCount").value);
+  let div = document.getElementById("rooms");
+  div.innerHTML = "";
+  for(let i=0;i<count;i++){
+    let select = `<label class="room-label">第${i+1}間房型
+      <select class="room">
+      ${Object.entries(roomTypes).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}
+      </select>
+    </label>`;
+    div.innerHTML += select;
+  }
+}
+
+function updateBreakfast(){
+  let plan = document.getElementById("plan").value;
+  let checkin = document.getElementById("checkin").value;
+  let checkout = document.getElementById("checkout").value;
+  let container = document.getElementById("breakfastContainer");
+  container.innerHTML = "";
+
+ if((plan === "1" || plan === "2") && checkin && checkout){
+    let start = new Date(checkin);
+    let end = new Date(checkout);
+    let nights = (end - start)/(1000*60*60*24);
+    for(let i=0;i<nights;i++){
+      let d = new Date(start);
+      d.setDate(d.getDate()+i+1);
+      let labelDate = `${(d.getMonth()+1).toString().padStart(2,'0')}月${d.getDate().toString().padStart(2,'0')}日`;
+      let select = `<label class="breakfast-label">${labelDate} 早餐
+        <select class="breakfast">
+        ${breakfastTimes.map((t,idx)=> idx?`<option value="${idx}">${t}</option>`:"").join("")}
+        </select>
+      </label>`;
+      container.innerHTML += select;
+    }
+  }
+}
+
+function updateDinner(){
+  let plan = document.getElementById("plan").value;
+  let checkin = document.getElementById("checkin").value;
+  let checkout = document.getElementById("checkout").value;
+  let container = document.getElementById("dinnerContainer");
+
+  container.innerHTML = "";
+
+  if(plan === "2" && checkin && checkout){
+
+    let start = new Date(checkin);
+    let end = new Date(checkout);
+
+    let nights = (end - start)/(1000*60*60*24);
+
+    for(let i=0;i<nights;i++){
+
+      let d = new Date(start);
+      d.setDate(d.getDate()+i);
+
+      let labelDate =
+      `${(d.getMonth()+1).toString().padStart(2,'0')}月${d.getDate().toString().padStart(2,'0')}日`;
+
+      let select = `
+      <label class="breakfast-label">
+        ${labelDate} 晚餐
+        <select class="dinner">
+          ${dinnerTimes.map((t,idx)=>
+            idx ? `<option value="${idx}">${t}</option>` : ""
+          ).join("")}
+        </select>
+      </label>`;
+
+      container.innerHTML += select;
+    }
+  }
+}
+
+// 綁定事件
+document.getElementById("roomCount").addEventListener("input", updateRooms);
+document.getElementById("plan").addEventListener("change", ()=>{
+  updateBreakfast();
+  updateDinner();
+});
+document.getElementById("checkin").addEventListener("change", ()=>{
+  let checkin = document.getElementById("checkin").value;
+
+  if(checkin){
+    let d = new Date(checkin);
+    d.setDate(d.getDate()+1);
+
+    let nextDay = d.toISOString().split("T")[0];
+
+    document.getElementById("checkout").min = nextDay;
+    document.getElementById("checkout").value = nextDay;
+  }
+
+  updateBreakfast();
+  updateDinner();
+});
+document.getElementById("checkout").addEventListener("change", ()=>{
+  updateBreakfast();
+  updateDinner();
+});
+
+updateRooms();
+
+function formatDate(d){
+  let date = new Date(d);
+  let week = ["星期日","星期一","星期二","星期三","星期四","星期五","星期六"];
+  return `${date.getFullYear()}年${(date.getMonth()+1).toString().padStart(2,'0')}月${date.getDate().toString().padStart(2,'0')}日 ${week[date.getDay()]}`;
+}
+
+function generate(){
+  let checkinRaw = document.getElementById("checkin").value;
+  let checkoutRaw = document.getElementById("checkout").value;
+  let checkin = formatDate(checkinRaw);
+  let checkout = formatDate(checkoutRaw);
+  let plan = document.getElementById("plan").value;
+  let hasName = document.getElementById("hasName").value;
+  let hasPhone = document.getElementById("hasPhone").value;
+
+  let rooms = document.querySelectorAll(".room");
+  let summary = {};
+  let uniqueTypes = new Set();
+  rooms.forEach(r=>{
+    summary[r.value] = (summary[r.value]||0)+1;
+    uniqueTypes.add(r.value);
+  });
+
+  let text = "貴賓您好，與您行前確認以下資訊\n";
+  text += `入住日：${checkin}\n`;
+  text += `退房日：${checkout}\n`;
+  text += `方案：${
+  plan=="2"?"一泊二食":
+  plan=="1"?"一泊一食":
+  "純住宿不含餐"
+}\n`;
+  text += "預定房型：\n";
+
+  for(let k in summary){
+    text += `${roomTypes[k]} ${summary[k]} 間\n`;
+  }
+
+// 一泊二食晚餐
+if(plan=="2"){
+
+  let dinnerSelects = document.querySelectorAll(".dinner");
+  let start = new Date(checkinRaw);
+
+  text += "\n▲晚餐安排：\n";
+
+  dinnerSelects.forEach((dinner,i)=>{
+
+    let d = new Date(start);
+    d.setDate(d.getDate()+i);
+
+    let labelDate =
+    `${(d.getMonth()+1).toString().padStart(2,'0')}月${d.getDate().toString().padStart(2,'0')}日`;
+
+    text += `${labelDate} ${dinnerTimes[dinner.value]}\n`;
+
+  });
+}
+
+// 早餐多天
+if(plan=="1" || plan=="2"){
+    let breakfastSelects = document.querySelectorAll(".breakfast");
+    let start = new Date(checkinRaw);
+    text += "\n▲早午餐安排：\n";
+    breakfastSelects.forEach((b,i)=>{
+      let d = new Date(start);
+      d.setDate(d.getDate()+i+1);
+      let labelDate = `${(d.getMonth()+1).toString().padStart(2,'0')}月${d.getDate().toString().padStart(2,'0')}日`;
+      text += `${labelDate} ${breakfastTimes[b.value]}\n`;
+    });
+    text += "07:00-08:30、08:30-10:00、10:00-11:30、11:30-13:00\n";
+    text += "(欲改時段再麻煩向飯店更改，若時段還有位置即可更換)\n";
+  }
+
+  text += "-----------\n";
+  text += "請回覆以下資訊以利飯店為您安排訂單(如未回覆將以飯店制式安排)：\n";
+  text += "● 浴衣拖鞋：(ex:大人1男1女+小孩2歲女、3歲男)\n";
+
+  // 多房型顯示備品欄位
+  if(rooms.length >= 2){
+    rooms.forEach((r, index)=>{
+      text += `第${index+1}間 ${roomTypes[r.value]}：\n`;
+    });
+  }
+
+if(plan=="1" || plan=="2"){
+    text += "● 餐期：此安排OK / 提供想更改的餐廳與時段\n";
+  }
+  if(hasName=="0"){
+    text += "● 訂房中文大名：\n";
+  }
+  if(hasPhone=="0"){
+    text += "● 手機：\n";
+  }
+  if(rooms.length >=2 && uniqueTypes.size > 1){
+    text += "\n本飯店確認到您的訂單有預訂不同的房型，不同房型的客房會位於不同樓層，造成不便請您見諒。\n";
+  }
+
+  // 最後固定入住說明
+  text += "\n進房為下午3點後，退房為上午11點前。提前抵達請先至櫃檯辦理報到手續，可寄放行李與使用設施。欲使用五樓泡湯區請記得攜帶泳衣帽。本飯店全面禁菸，無提供一次性備品，若有其它住宿相關問題，歡迎來電03-9100688訂房組與我們聯繫，謝謝！\n";
+
+// ==== 鳳凰飴號訊息 ====
+let roomValues = Array.from(rooms).map(r => r.value);
+
+if(
+  plan == "2" ||
+  roomValues.includes("7") ||
+  roomValues.includes("8")
+){
+  text += "\n凡預訂一泊二食專案或入住套房之貴賓，長榮鳳凰酒店（礁溪）邀請您入住日使用本館一樓「鳳凰飴號」，開放時間為14:00至22:30，相關內容詳情請參閱飯店官網說明。";
+}
+
+  // ==== 補充說明 ====
+  text += "\n\n※每房依據房型人數入住，若有超過人數同行，雙人房上限多加2小、三人四人房上限多加1小，且滿7歲起需另外加收費用(飯店現場支付)。\n";
+  text += "\n※經確認的訂單若取消後再重新預定,請主動與飯店確認內容。\n";
+  text += "\n※本飯店訊息服務時間為平日 09:00–17:30，若於服務時間外留言，我們將於上班時間儘速為您回覆。\n";
+
+  document.getElementById("output").value = text;
+}
+
+function formatDateEN(d){
+  let date = new Date(d);
+  let months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  let days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  return `${date.getDate()}-${months[date.getMonth()]}-${date.getFullYear()} (${days[date.getDay()]})`;
+}
+
+function formatBreakfastDateEN(d, time){
+  let date = new Date(d);
+  let months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${date.getDate()}-${months[date.getMonth()]} ${time}`;
+}
+
+function translateToEnglish(){
+  let checkinRaw = document.getElementById("checkin").value;
+  let checkoutRaw = document.getElementById("checkout").value;
+
+  let checkin = formatDateEN(checkinRaw);
+  let checkout = formatDateEN(checkoutRaw);
+
+  let plan = document.getElementById("plan").value;
+  let rooms = document.querySelectorAll(".room");
+
+  let summary = {};
+  let uniqueTypes = new Set();
+
+  rooms.forEach(r=>{
+    summary[r.value] = (summary[r.value]||0)+1;
+    uniqueTypes.add(r.value);
+});
+
+  let text = "Dear Guest, we would like to confirm your reservation details as follows:\n";
+  text += `Check-in Date: ${checkin}\n`;
+  text += `Check-out Date: ${checkout}\n`;
+  text += `Package: ${
+  plan=="2"?"One night with dinner & brunch":
+  plan=="1"?"One night with brunch":
+  "Room only"
+}\n`;
+  text += "Room Type:\n";
+
+  for(let k in summary){
+    text += `${roomTypesEN[k]} x ${summary[k]}\n`;
+  }
+
+// Dinner
+if(plan=="2"){
+
+  let dinnerSelects = document.querySelectorAll(".dinner");
+  let start = new Date(checkinRaw);
+
+  text += "\n▲Dinner Schedule:\n";
+
+  dinnerSelects.forEach((dinner,i)=>{
+
+    let d = new Date(start);
+    d.setDate(d.getDate()+i);
+
+    text += `${formatBreakfastDateEN(d, dinnerTimes[dinner.value])}\n`;
+
+  });
+}
+  // 早餐
+  if(plan=="1" || plan=="2"){
+    let breakfastSelects = document.querySelectorAll(".breakfast");
+    let start = new Date(checkinRaw);
+
+    text += "\n▲Brunch Schedule:\n";
+
+    breakfastSelects.forEach((b,i)=>{
+      let d = new Date(start);
+      d.setDate(d.getDate()+i+1);
+      text += `${formatBreakfastDateEN(d, breakfastTimes[b.value])}\n`;
+    });
+
+    text += "07:00-08:30 / 08:30-10:00 / 10:00-11:30 / 11:30-13:00\n";
+    text += "(If you wish to change the time, please contact the hotel. Changes are subject to availability.)\n";
+  }
+
+text += "-----------\n";
+text += "Please provide the following information for room arrangements:\n";
+text += "● Yukata & Slippers (e.g., adult 1M+1F & 2y girl+3y boy):\n";
+
+// 多房型逐間顯示
+if(rooms.length >= 2){
+  rooms.forEach((r, index)=>{
+    text += `Room ${index+1} ${roomTypesEN[r.value]}:\n`;
+  });
+}
+
+  if(plan=="1" || plan=="2"){
+    text += "● Dining time: Confirm / Request changes\n";
+}
+// 不同房型不同樓層提醒
+if(rooms.length >=2 && uniqueTypes.size > 1){
+  text += "\nWe have confirmed that your reservation includes different room types, and these rooms are located on different floors. We apologize for any inconvenience this may cause.\n";
+}
+
+  text += "\nCheck-in time is after 3:00 PM, and check-out time is before 11:00 AM.\n";
+  text += "If you arrive early, you may store your luggage and use hotel facilities.\n";
+  text += "Please bring a swimsuit and swim cap for the hot spring area.\n";
+  text += "The hotel is non-smoking and does not provide disposable amenities.\n";
+
+// 鳳凰飴號文案
+let roomValues = Array.from(rooms).map(r => r.value);
+
+if(
+  plan=="2" ||
+  roomValues.includes("7") ||
+  roomValues.includes("8")
+){
+    text += "\n\nGuests who book the One-Night Two-Meals package or stay in a suite are cordially invited to enjoy access to Phoenix One, located on the first floor of Evergreen Resort Hotel (Jiaoxi), on the day of check-in.";
+    text += " Opening hours are from 14:00 to 22:30. For more details, please kindly refer to the hotel’s official website.";
+  }
+
+  // 補充
+  text += "\n\n※ Room occupancy is based on room type capacity. Extra children may incur additional charges (payable on-site).\n";
+  text += "※ If a confirmed reservation is cancelled and rebooked, please reconfirm details with the hotel.\n";
+  text += "※ Our message service hours are on weekdays from 09:00 to 17:30. If you leave a message outside of these hours, we will respond as soon as possible during our next business hours.\n";
+
+  document.getElementById("output").value = text;
+}
+
+
+function copyText(){
+  let textarea = document.getElementById("output");
+  textarea.select();
+  document.execCommand("copy");
+  showToast("已複製文字！");
+}
+
+// Toast 顯示
+function showToast(msg){
+  let toast = document.getElementById("toast");
+  toast.textContent = msg;
+  toast.style.opacity = "1";
+  setTimeout(()=>{ toast.style.opacity = "0"; },2000);
+}
+
+</script>
+
+</body>
+</html>
